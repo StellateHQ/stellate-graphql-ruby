@@ -41,7 +41,7 @@ class MySchema < GraphQL::Schema
 end
 ```
 
-The last thing to do is to replace all calls to `MySchema.execute()` with `MySchema.execute_with_logging()`. Both these function accept the same arguments.
+The last thing to do is to change all `MySchema.execute()` calls to `MySchema.execute_with_logging()`. Both these function accept the same arguments.
 
 Stellate can provide you with even more insights if you also provive the `execute_with_logging` method with the map of HTTP headers (of type `ActionDispatch::Http::Headers`). An example for a call to this function would look like this:
 
