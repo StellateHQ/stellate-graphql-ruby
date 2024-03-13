@@ -4,7 +4,7 @@ require 'uri'
 require 'net/http'
 
 module Stellate
-  VERSION = '0.0.1'
+  VERSION = '0.0.2'
 
   # Extend your GraphQL::Schema with this module to enable easy Stellate
   # Metrics Logging.
