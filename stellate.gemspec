@@ -6,7 +6,11 @@ Gem::Specification.new do |spec|
   spec.name        = 'stellate'
   spec.version     = Stellate::VERSION
   spec.summary     = 'Integrate Stellate with your GraphQL Ruby API'
-  spec.description = 'Add Stellate Metrics Logging and Schema Syncing to your GraphQL Ruby API with a few lines of code'
+  spec.description = <<~DESC
+    Add Stellate Metrics Logging and Schema Syncing to your GraphQL Ruby API
+    with a few lines of code, click this link for specific set up instructions:
+    https://github.com/StellateHQ/stellate-graphql-ruby
+  DESC
   spec.authors     = ['Stellate']
   spec.email       = 'eng@stellate.co'
   spec.files       = ['lib/stellate.rb']
