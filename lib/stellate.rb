@@ -4,7 +4,7 @@ require 'uri'
 require 'net/http'
 
 module Stellate
-  VERSION = '0.0.2'
+  VERSION = '0.0.3'
 
   # Extend your GraphQL::Schema with this module to enable easy Stellate
   # Metrics Logging.
@@ -25,6 +25,11 @@ module Stellate
 
       ending = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       elapsed = (ending - starting) * 1000
+
+      headers = kwargs[:headers]
+      has_headers = headers.is_a?(ActionDispatch::Http::Headers)
+
+      return result if has_headers && headers['Gcdn-Request-Id'].is_a?(String)
 
       unless @stellate_service_name.is_a?(String)
         puts 'Missing service name in order to log metrics to Stellate'
@@ -56,15 +61,13 @@ module Stellate
       errors = result['errors']
       payload[:errors] = errors if errors.is_a?(Array)
 
-      headers = kwargs[:headers]
-      if headers.is_a?(ActionDispatch::Http::Headers)
+      if has_headers
         forwarded_for = headers['X-Forwarded-For']
         ips = forwarded_for.is_a?(String) ? forwarded_for.split(',') : []
 
         payload[:id] = ips[0] || headers['True-Client-Ip'] || headers['X-Real-Ip']
         payload[:userAgent] = headers['User-Agent']
         payload[:referer] = headers['referer']
-
       end
 
       # TODO: make this an async request to avoid blocking the response
