@@ -54,3 +54,39 @@ MySchema.execute_with_logging(
   headers: request.headers
 )
 ```
+
+### (Non-)Blocking HTTP requests
+
+By default, this plugin performs blocking HTTP requests to log requests or sync the schema. Stellate does run at the Edge in dozens of locations around the world, but these additional response times still negatively affect the response times for your API.
+
+We allow you to move these blocking HTTP requests into any non-blocking process. This can be achieved by passing a callback function like so:
+
+```rb
+# Define a method that will set up a non-blocking process
+def my_callback(http_to_stellate)
+  # `http_to_stellate` is a lambda that will perform the HTTP request to
+  # Stellate, you can set up any async side-process here or queue this task
+  # with something like Sidekiq.
+
+  # Invoke the lambda like this:
+  http_to_stellate.call
+end
+
+# Pass the callback to the schema syncing like so:
+class MySchema < GraphQL::Schema
+  # ...
+
+  use Stellate::SchemaSyncing, callback: :my_callback
+
+  # ...
+end
+
+# Pass the callback to the request logging like so:
+MySchema.execute_with_logging(
+  # GraphQL-specific arguments
+  query,
+  variables:, context:, operation_name:,
+  # Stellate-specific arguments
+  headers: request.headers, callback: :my_callback
+)
+```

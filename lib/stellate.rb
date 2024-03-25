@@ -4,7 +4,7 @@ require 'uri'
 require 'net/http'
 
 module Stellate
-  VERSION = '0.0.3'
+  VERSION = '0.0.4'
 
   # Extend your GraphQL::Schema with this module to enable easy Stellate
   # Metrics Logging.
@@ -18,10 +18,16 @@ module Stellate
     # arguments as `GraphQL::Schema.execute()`, and also the following:
     # - `headers` (`ActionDispatch::Http::Headers`): The HTTP headers from the
     #   incoming request
+    # - `callback` (`Method`): If passed, this will be called with a lambda as
+    #   argument. Calling the passed lambda will log the request to Stellate
+    #   via HTTP. This is useful if you want to move this request into a non-
+    #   blocking process (e.g. using Sidekiq) rather than the default behavior
+    #   of performing a blocking HTTP request which can increase overall
+    #   response times of your API.
     def execute_with_logging(query_str = nil, **kwargs)
       starting = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
-      result = execute(query_str, **kwargs.except(:service_name, :token, :headers))
+      result = execute(query_str, **kwargs.except(:headers, :callback))
 
       ending = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       elapsed = (ending - starting) * 1000
@@ -70,17 +76,29 @@ module Stellate
         payload[:referer] = headers['referer']
       end
 
-      # TODO: make this an async request to avoid blocking the response
-      begin
-        res = Net::HTTP.post(
-          URI("https://#{@stellate_service_name}.stellate.sh/log"),
-          payload.to_json,
-          'Content-Type' => 'application/json',
-          'Stellate-Logging-Token' => @stellate_token
-        )
-        puts "Failed to log metrics to Stellate: #{res.body}" if res.code.to_i >= 300
-      rescue StandardError => e
-        puts "Failed to log metrics to Stellate: #{e}"
+      log_to_stellate = lambda {
+        begin
+          res = Net::HTTP.post(
+            URI("https://#{@stellate_service_name}.stellate.sh/log"),
+            payload.to_json,
+            'Content-Type' => 'application/json',
+            'Stellate-Logging-Token' => @stellate_token
+          )
+          puts "Failed to log metrics to Stellate: #{res.body}" if res.code.to_i >= 300
+        rescue StandardError => e
+          puts "Failed to log metrics to Stellate: #{e}"
+        end
+      }
+
+      callback = kwargs[:callback]
+      # The former check handles methods, the latter handles lambdas
+      if callback.is_a?(Method) || callback.respond_to?(:call)
+        callback.call(log_to_stellate)
+      # This handles symbols that contain methods
+      elsif callback.is_a?(Symbol) && method(callback).is_a?(Method)
+        method(callback).call(log_to_stellate)
+      else
+        log_to_stellate.call
       end
 
       result
@@ -98,7 +116,15 @@ module Stellate
   # Use this plugin in your GraphQL::Schema to automatically sync your GraphQL
   # schema with your Stellate service.
   class SchemaSyncing
-    def self.use(schema)
+    # The first argument is the GraphQLSchema class that this plugin is used
+    # on. It accepts the following names arguments:
+    # - `callback` (`Method`): If passed, this will be called with a lambda as
+    #   argument. Calling the passed lambda will sync the schema to Stellate
+    #   via HTTP. This is useful if you want to move this request into a non-
+    #   blocking process (e.g. using Sidekiq) rather than the default behavior
+    #   of performing a blocking HTTP request which can increase overall
+    #   response times of your API.
+    def self.use(schema, **kwargs)
       unless schema.stellate_service_name.is_a?(String)
         puts 'Missing service name in order to sync schema to Stellate'
         return
@@ -111,17 +137,29 @@ module Stellate
 
       introspection = JSON.parse(schema.to_json)['data']
 
-      # TODO: make this an async request to avoid blocking the request
-      begin
-        res = Net::HTTP.post(
-          URI("https://#{schema.stellate_service_name}.stellate.sh/schema"),
-          { schema: introspection }.to_json,
-          'Content-Type' => 'application/json',
-          'Stellate-Schema-Token' => schema.stellate_token
-        )
-        puts "Failed to sync schema to Stellate: #{res.body}" if res.code.to_i >= 300
-      rescue StandardError => e
-        puts "Failed to sync schema to Stellate: #{e}"
+      sync_to_stellate = lambda {
+        begin
+          res = Net::HTTP.post(
+            URI("https://#{@stellate_service_name}.stellate.sh/schema"),
+            { schema: introspection }.to_json,
+            'Content-Type' => 'application/json',
+            'Stellate-Schema-Token' => schema.stellate_token
+          )
+          puts "Failed to sync schema to Stellate: #{res.body}" if res.code.to_i >= 300
+        rescue StandardError => e
+          puts "Failed to sync schema to Stellate: #{e}"
+        end
+      }
+
+      callback = kwargs[:callback]
+      # The former check handles methods, the latter handles lambdas
+      if callback.is_a?(Method) || callback.respond_to?(:call)
+        callback.call(sync_to_stellate)
+      # This handles symbols that contain methods
+      elsif callback.is_a?(Symbol) && method(callback).is_a?(Method)
+        method(callback).call(sync_to_stellate)
+      else
+        sync_to_stellate.call
       end
     end
   end
