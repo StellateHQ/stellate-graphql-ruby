@@ -4,7 +4,7 @@ require 'uri'
 require 'net/http'
 
 module Stellate
-  VERSION = '0.0.4'
+  VERSION = '0.0.5'
 
   # Extend your GraphQL::Schema with this module to enable easy Stellate
   # Metrics Logging.
@@ -54,14 +54,14 @@ module Stellate
 
       response = result.to_json
       payload = {
-        "operation": query_str,
-        "variableHash": create_blake3_hash(kwargs[:variables].to_json),
-        "method": kwargs[:method].is_a?(String) ? kwargs[:method] : 'POST',
-        "elapsed": elapsed.round,
-        "responseSize": response.length,
-        "responseHash": create_blake3_hash(response),
-        "statusCode": 200,
-        "operationName": kwargs[:operation_name]
+        'operation': query_str,
+        'variableHash': create_blake3_hash(kwargs[:variables].to_json),
+        'method': kwargs[:method].is_a?(String) ? kwargs[:method] : 'POST',
+        'elapsed': elapsed.round,
+        'responseSize': response.length,
+        'responseHash': create_blake3_hash(response),
+        'statusCode': 200,
+        'operationName': kwargs[:operation_name]
       }
 
       errors = result['errors']
@@ -76,29 +76,24 @@ module Stellate
         payload[:referer] = headers['referer']
       end
 
-      log_to_stellate = lambda {
-        begin
-          res = Net::HTTP.post(
-            URI("https://#{@stellate_service_name}.stellate.sh/log"),
-            payload.to_json,
-            'Content-Type' => 'application/json',
-            'Stellate-Logging-Token' => @stellate_token
-          )
-          puts "Failed to log metrics to Stellate: #{res.body}" if res.code.to_i >= 300
-        rescue StandardError => e
-          puts "Failed to log metrics to Stellate: #{e}"
-        end
+      stellate_request = {
+        'url': "https://#{@stellate_service_name}.stellate.sh/log",
+        'headers': {
+          'Content-Type': 'application/json',
+          'Stellate-Logging-Token': @stellate_token
+        },
+        'body': payload.to_json
       }
 
       callback = kwargs[:callback]
       # The former check handles methods, the latter handles lambdas
       if callback.is_a?(Method) || callback.respond_to?(:call)
-        callback.call(log_to_stellate)
+        callback.call(stellate_request)
       # This handles symbols that contain methods
       elsif callback.is_a?(Symbol) && method(callback).is_a?(Method)
-        method(callback).call(log_to_stellate)
+        method(callback).call(stellate_request)
       else
-        log_to_stellate.call
+        run_stellate_request(stellate_request)
       end
 
       result
@@ -137,31 +132,40 @@ module Stellate
 
       introspection = JSON.parse(schema.to_json)['data']
 
-      sync_to_stellate = lambda {
-        begin
-          res = Net::HTTP.post(
-            URI("https://#{@stellate_service_name}.stellate.sh/schema"),
-            { schema: introspection }.to_json,
-            'Content-Type' => 'application/json',
-            'Stellate-Schema-Token' => schema.stellate_token
-          )
-          puts "Failed to sync schema to Stellate: #{res.body}" if res.code.to_i >= 300
-        rescue StandardError => e
-          puts "Failed to sync schema to Stellate: #{e}"
-        end
+      stellate_request = {
+        'url': "https://#{@stellate_service_name}.stellate.sh/schema",
+        'headers': {
+          'Content-Type': 'application/json',
+          'Stellate-Schema-Token': schema.stellate_token
+        },
+        'body': { schema: introspection }.to_json
       }
 
       callback = kwargs[:callback]
       # The former check handles methods, the latter handles lambdas
       if callback.is_a?(Method) || callback.respond_to?(:call)
-        callback.call(sync_to_stellate)
+        callback.call(stellate_request)
       # This handles symbols that contain methods
       elsif callback.is_a?(Symbol) && method(callback).is_a?(Method)
-        method(callback).call(sync_to_stellate)
+        method(callback).call(stellate_request)
       else
-        sync_to_stellate.call
+        run_stellate_request(stellate_request)
       end
     end
+  end
+
+  def self.run_stellate_request(stellate_request)
+    url = URI.parse(stellate_request[:url])
+    http = Net::HTTP.new(url.host, url.port)
+    req = Net::HTTP::Post.new(url)
+    stellate_request[:headers].each do |key, value|
+      req[key] = value
+    end
+    req.body = stellate_request[:body]
+    res = http.request(req)
+    puts "HTTP request to Stellate failed: #{res.body}" if res.code.to_i >= 300
+  rescue StandardError => e
+    puts "HTTP request to Stellate failed: #{e}"
   end
 end
 
