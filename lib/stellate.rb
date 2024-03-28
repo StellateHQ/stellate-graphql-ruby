@@ -71,7 +71,7 @@ module Stellate
         forwarded_for = headers['X-Forwarded-For']
         ips = forwarded_for.is_a?(String) ? forwarded_for.split(',') : []
 
-        payload['id'] = ips[0] || headers['True-Client-Ip'] || headers['X-Real-Ip']
+        payload['ip'] = ips[0] || headers['True-Client-Ip'] || headers['X-Real-Ip']
         payload['userAgent'] = headers['User-Agent']
         payload['referer'] = headers['referer']
       end
