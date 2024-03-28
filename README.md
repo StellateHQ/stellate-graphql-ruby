@@ -63,13 +63,16 @@ We allow you to move these blocking HTTP requests into any non-blocking process.
 
 ```rb
 # Define a method that will set up a non-blocking process
-def my_callback(http_to_stellate)
-  # `http_to_stellate` is a lambda that will perform the HTTP request to
-  # Stellate, you can set up any async side-process here or queue this task
-  # with something like Sidekiq.
+def my_callback(stellate_request)
+  # `stellate_request` is a hash that contains all the information you need to
+  # build up a POST request
+  stellate_request[:url] # The URL for the POST request
+  stellate_request[:headers] # The headers for the POST request
+  stellate_request[:body] # The body of the POST request
 
-  # Invoke the lambda like this:
-  http_to_stellate.call
+  # You can either create the HTTP POST request yourself, or use the following
+  # utility from the `Stellate` module to run it.
+  Stellate.run_stellate_request(stellate_request)
 end
 
 # Pass the callback to the schema syncing like so:
