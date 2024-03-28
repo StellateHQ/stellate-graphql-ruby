@@ -54,14 +54,14 @@ module Stellate
 
       response = result.to_json
       payload = {
-        'operation': query_str,
-        'variableHash': create_blake3_hash(kwargs[:variables].to_json),
-        'method': kwargs[:method].is_a?(String) ? kwargs[:method] : 'POST',
-        'elapsed': elapsed.round,
-        'responseSize': response.length,
-        'responseHash': create_blake3_hash(response),
-        'statusCode': 200,
-        'operationName': kwargs[:operation_name]
+        'operation' => query_str,
+        'variableHash' => create_blake3_hash(kwargs[:variables].to_json),
+        'method' => kwargs[:method].is_a?(String) ? kwargs[:method] : 'POST',
+        'elapsed' => elapsed.round,
+        'responseSize' => response.length,
+        'responseHash' => create_blake3_hash(response),
+        'statusCode' => 200,
+        'operationName' => kwargs[:operation_name]
       }
 
       errors = result['errors']
@@ -71,18 +71,18 @@ module Stellate
         forwarded_for = headers['X-Forwarded-For']
         ips = forwarded_for.is_a?(String) ? forwarded_for.split(',') : []
 
-        payload[:id] = ips[0] || headers['True-Client-Ip'] || headers['X-Real-Ip']
-        payload[:userAgent] = headers['User-Agent']
-        payload[:referer] = headers['referer']
+        payload['ip'] = ips[0] || headers['True-Client-Ip'] || headers['X-Real-Ip']
+        payload['userAgent'] = headers['User-Agent']
+        payload['referer'] = headers['referer']
       end
 
       stellate_request = {
-        'url': "https://#{@stellate_service_name}.stellate.sh/log",
-        'headers': {
-          'Content-Type': 'application/json',
-          'Stellate-Logging-Token': @stellate_token
+        'url' => "https://#{@stellate_service_name}.stellate.sh/log",
+        'headers' => {
+          'Content-Type' => 'application/json',
+          'Stellate-Logging-Token' => @stellate_token
         },
-        'body': payload.to_json
+        'body' => payload.to_json
       }
 
       callback = kwargs[:callback]
@@ -133,12 +133,12 @@ module Stellate
       introspection = JSON.parse(schema.to_json)['data']
 
       stellate_request = {
-        'url': "https://#{@stellate_service_name}.stellate.sh/schema",
-        'headers': {
-          'Content-Type': 'application/json',
-          'Stellate-Schema-Token': schema.stellate_token
+        'url' => "https://#{schema.stellate_service_name}.stellate.sh/schema",
+        'headers' => {
+          'Content-Type' => 'application/json',
+          'Stellate-Schema-Token' => schema.stellate_token
         },
-        'body': { schema: introspection }.to_json
+        'body' => { schema: introspection }.to_json
       }
 
       callback = kwargs[:callback]
@@ -155,13 +155,16 @@ module Stellate
   end
 
   def self.run_stellate_request(stellate_request)
-    url = URI.parse(stellate_request[:url])
+    url = URI.parse(stellate_request['url'])
+
     http = Net::HTTP.new(url.host, url.port)
+    http.use_ssl = true
+
     req = Net::HTTP::Post.new(url)
-    stellate_request[:headers].each do |key, value|
+    stellate_request['headers'].each do |key, value|
       req[key] = value
     end
-    req.body = stellate_request[:body]
+    req.body = stellate_request['body']
     res = http.request(req)
     puts "HTTP request to Stellate failed: #{res.body}" if res.code.to_i >= 300
   rescue StandardError => e

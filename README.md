@@ -93,3 +93,41 @@ MySchema.execute_with_logging(
   headers: request.headers, callback: :my_callback
 )
 ```
+
+#### Example: Sidekiq
+
+[Sidekiq](https://sidekiq.org/) is a popular job system for Ruby application that allows you to run tasks asynchronously. You can use it to make the HTTP requests sent to Stellate non-blocking.
+
+First, create a Sidekiq job that takes in a `stellate_request` hash (the one shown above) and passes it to `Stellate.run_stellate_request`:
+
+```rb
+class StellateJob
+  include Sidekiq::Job
+
+  def perform(stellate_request)
+    Stellate.run_stellate_request(stellate_request)
+  end
+end
+```
+
+You can then schedule a run of `StellateJob` for each request by using the callback argument:
+
+```rb
+# Pass the callback to the schema syncing like so:
+class MySchema < GraphQL::Schema
+  # ...
+
+  use Stellate::SchemaSyncing, callback: StellateJob.method(:perform_async)
+
+  # ...
+end
+
+# Pass the callback to the request logging like so:
+MySchema.execute_with_logging(
+  # GraphQL-specific arguments
+  query,
+  variables:, context:, operation_name:,
+  # Stellate-specific arguments
+  headers: request.headers, callback: StellateJob.method(:perform_async)
+)
+```
