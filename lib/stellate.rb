@@ -4,7 +4,7 @@ require 'uri'
 require 'net/http'
 
 module Stellate
-  VERSION = '1.0.0'
+  VERSION = '1.1.0'
 
   # Extend your GraphQL::Schema with this module to enable easy Stellate
   # Metrics Logging.
@@ -74,6 +74,8 @@ module Stellate
         payload['ip'] = ips[0] || headers['True-Client-Ip'] || headers['X-Real-Ip']
         payload['userAgent'] = headers['User-Agent']
         payload['referer'] = headers['referer']
+        payload['graphqlClientName'] = headers['x-graphql-client-name']
+        payload['graphqlClientVersion'] = headers['x-graphql-client-version']
       end
 
       stellate_request = {
